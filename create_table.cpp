@@ -57,8 +57,8 @@ int main (int argc, char *argv[])
   "\"SYM\" VARCHAR(20) NOT NULL,"
   "\"NUM\" INT NOT NULL," \
   "\"PRICE\" INT NOT NULL," \
-  "FOREIGN KEY (\"BUY_ID\") REFERENCES \"ACCOUNT\"(\"ACCOUNT_ID\")," \
-  "FOREIGN KEY (\"SELL_ID\") REFERENCES \"ACCOUNT\"(\"ACCOUNT_ID\"));";
+  "FOREIGN KEY (\"BUY_ID\") REFERENCES \"ACCOUNT\"(\"ACCOUNT_ID\") ON DELETE CASCADE," \
+  "FOREIGN KEY (\"SELL_ID\") REFERENCES \"ACCOUNT\"(\"ACCOUNT_ID\") ON DELETE CASCADE);";
 
   W.exec(sql_trans);
 
@@ -70,13 +70,15 @@ int main (int argc, char *argv[])
   "\"SYM\" VARCHAR(20) NOT NULL," \
   "\"AMOUNT\" INT NOT NULL," \
   "\"LIMIT\" INT NOT NULL," \
-  "FOREIGN KEY (\"CALLER_ID\") REFERENCES \"ACCOUNT\"(\"ACCOUNT_ID\"));";
+  "FOREIGN KEY (\"CALLER_ID\") REFERENCES \"ACCOUNT\"(\"ACCOUNT_ID\") ON DELETE CASCADE);";
   W.exec(sql_order);
 
   string sql_symbol;
   // How to know the number of symbols?
   sql_player = "CREATE TABLE \"SYMBOL\" (" \
   "\"USER_ID\" VARCHAR(20) NOT NULL," \
+  "\"SYM\" VARCHAR(20) NOT NULL," \
+  "\"SHARE\" INT NOT NULL," \
   /*
   "\"TEAM_ID\" INT NOT NULL," \
   "\"UNIFORM_NUM\" INT NOT NULL," \
@@ -89,8 +91,8 @@ int main (int argc, char *argv[])
   "\"SPG\" DECIMAL(2,1) NOT NULL," \
   "\"BPG\" DECIMAL(2,1) NOT NULL," \
   */
-  "PRIMARY KEY (\"USER_ID\"), " \
-  "FOREIGN KEY (\"USER_ID\") REFERENCES \"ACCOUNT\"(\"ACCOUNT_ID\"));";
+  "PRIMARY KEY (\"USER_ID\", \"SYM\"), " \
+  "FOREIGN KEY (\"USER_ID\") REFERENCES \"ACCOUNT\"(\"ACCOUNT_ID\") ON DELETE CASCADE);";
 
   W.exec(sql_symbol);
 

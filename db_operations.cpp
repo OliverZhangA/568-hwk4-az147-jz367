@@ -1,12 +1,5 @@
-#include <iostream>
-#include <pqxx/pqxx>
-#include <string>
-#include <vector>
-
-using namespace std;
-using namespace pqxx;
-
-int main (int argc, char *argv[]) 
+#include "operations.hpp"
+connection* create_table()
 {
 
   //Allocate & initialize a Postgres connection object
@@ -20,11 +13,11 @@ int main (int argc, char *argv[])
       cout << "Opened database successfully: " << C->dbname() << endl;
     } else {
       cout << "Can't open database" << endl;
-      return 1;
+      exit(EXIT_FAILURE);
     }
   } catch (const std::exception &e){
     cerr << e.what() << std::endl;
-    return 1;
+    exit(EXIT_FAILURE);
   }
 
 
@@ -50,7 +43,7 @@ int main (int argc, char *argv[])
   W.exec(sql_account);
 
   string sql_trans;
-  sql_state = "CREATE TABLE \"TRANSACTION\" (" \
+  sql_trans = "CREATE TABLE \"TRANSACTION\" (" \
   "\"TRANS_ID\" SERIAL PRIMARY KEY," \
   "\"BUY_ID\" VARCHAR(20) NOT NULL," \
   "\"SELL_ID\" VARCHAR(20) NOT NULL," \
@@ -63,19 +56,19 @@ int main (int argc, char *argv[])
   W.exec(sql_trans);
 
   string sql_order;
-  sql_team = "CREATE TABLE \"ORDER\" (" \
+  sql_order = "CREATE TABLE \"ORDER\" (" \
   "\"ID\" SERIAL PRIMARY KEY," \
   "\"CALLER_ID\" VARCHAR(20) NOT NULL," \
   // Is symbol a foreign key?
   "\"SYM\" VARCHAR(20) NOT NULL," \
   "\"AMOUNT\" INT NOT NULL," \
-  "\"LIMIT\" INT NOT NULL," \
+  "\"PRICE\" INT NOT NULL," \
   "FOREIGN KEY (\"CALLER_ID\") REFERENCES \"ACCOUNT\"(\"ACCOUNT_ID\") ON DELETE CASCADE);";
   W.exec(sql_order);
 
   string sql_symbol;
   // How to know the number of symbols?
-  sql_player = "CREATE TABLE \"SYMBOL\" (" \
+  sql_symbol = "CREATE TABLE \"SYMBOL\" (" \
   "\"USER_ID\" VARCHAR(20) NOT NULL," \
   "\"SYM\" VARCHAR(20) NOT NULL," \
   "\"SHARE\" INT NOT NULL," \
@@ -120,5 +113,12 @@ int main (int argc, char *argv[])
   //Close database connection
   C->disconnect();
 
-  return 0;
+}
+void create_account(XMLElement* cur, connection * C) {
+  string sql;
+  
+  cout<<"account id is "<<cur->Attribute("id")<<" balance is "<<cur->Attribute("balance")<<endl;
+}
+void create_symbol(XMLElement* cur, connection * C) {
+
 }

@@ -54,6 +54,7 @@ int main (int argc, char *argv[])
   "\"TRANS_ID\" SERIAL PRIMARY KEY," \
   "\"BUY_ID\" VARCHAR(20) NOT NULL," \
   "\"SELL_ID\" VARCHAR(20) NOT NULL," \
+  "\"SYM\" VARCHAR(20) NOT NULL,"
   "\"NUM\" INT NOT NULL," \
   "\"PRICE\" INT NOT NULL," \
   "FOREIGN KEY (\"BUY_ID\") REFERENCES \"ACCOUNT\"(\"ACCOUNT_ID\")," \

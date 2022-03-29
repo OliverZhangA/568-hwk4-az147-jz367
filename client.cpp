@@ -6,7 +6,36 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <fstream>
 using namespace std;
+string readin_file(string filename){
+  ifstream infile(filename);
+  string oneline;
+  string ret;
+  if(infile.is_open()){
+    while (getline(infile, oneline))
+    {
+      ret += oneline + "\n";
+    }
+  } else {
+    cerr<<"can not open and read the file!"<<endl;
+    exit(EXIT_FAILURE);
+  }
+  return ret;
+}
+
+vector<string> split_str(string & str) {
+  vector<string> str_vec;
+  size_t start = -2;
+  size_t end = str.find("\n\n");
+  while (end != string::npos) {
+    str_vec.push_back(str.substr(start + 2, end - (start + 2)));
+    start = end;
+    end = str.find("\n\n", start + 2);
+  }
+  str_vec.push_back(str.substr(start + 2, string::npos));
+  return str_vec;
+}
 
 int initclient(const char* hostname, const char* port) {
     int status;
@@ -86,15 +115,42 @@ int main(int argc, char* argv[]) {
     //send port num of this client, how to get it?
     //cout<<"selfsockfd is"<<self_sockfd<<endl;
     //int player_portnum = fetch_portnum(self_sockfd);
-    string buff = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" \
-    "<create><account id=\"123456\" balance=\"1000\"/>" \
-    "<symbol sym=\"SPY\">" \
-    "<account id=\"123456\">100000</account>" \
-    "</symbol>" \
-    "</create>";
+    string buff = readin_file("testin.txt");
+    vector<string> buff_vec = split_str(buff);
+    /*
+    cout << buff_vec.size() << endl;
+    cout << endl;
+    cout << endl;
+    for (size_t i = 0; i < buff_vec.size(); ++i) {
+      cout << buff_vec[i] << endl;
+      cout << endl;
+      cout << endl;
+    }
+    */
+    // "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" \
+    // "<create><account id=\"123456\" balance=\"1000\"/>" \
+    // "<symbol sym=\"SPY\">" \
+    // "<account id=\"123456\">100000</account>" \
+    // "</symbol>" \
+    // "</create>";
     //char send_data[] = buff.c_str();
+    for (size_t i = 0; i < buff_vec.size(); ++i) {
+      //cout<<"client sending xml data: "<<endl<<buff<<endl;
+      send(player_socknum, buff_vec[i].c_str(), buff.size(), 0);
+      char buffer[65535];
+      memset(buffer, 0, sizeof(buffer));
+      recv(player_socknum, buffer, sizeof(buffer), 0);
+      cout<<"*************************"<<endl;
+      cout<<"response received:\n"<<string(buffer);
+      cout<<"*************************"<<endl<<endl;
+    }
+    /*
     cout<<"client sending xml data: "<<endl<<buff<<endl;
     send(player_socknum, buff.c_str(), buff.size(), 0);
+    char buffer[65535];
+    recv(player_socknum, buffer, sizeof(buffer), 0);
+    cout<<"response received:"<<string(buffer)<<endl;
+    */
     close(player_socknum);
     return EXIT_SUCCESS;
 }

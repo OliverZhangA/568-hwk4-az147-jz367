@@ -10,6 +10,15 @@
 #include <unistd.h>
 using namespace std;
 
+// vector<string> split_str(string & str) {
+//   vector<string> str_vec;
+//   int end;
+//   while ((end=str.find("\n\n")) != string::npos) {
+//     str_vec.push_back(str.substr(0, end + 1);
+//     str = str.substr(end + 1);
+//   }
+//   return str_vec;
+// }
 int initserver(const char * port) {
     int status;
     int socket_fd;
@@ -63,7 +72,7 @@ int initserver(const char * port) {
     return socket_fd;
 }
 int main(int argc, char* argv[]) {
-    //initializ the tables
+    //initialize the tables
     connection* C = create_table();
     const char* port_num = "12345";
     //generate ringmaster
@@ -83,10 +92,19 @@ int main(int argc, char* argv[]) {
 
         //???no need to keep track of ports because we can always get it from socket_storage
     char buffer[65535];
-    recv(client_fd, buffer, sizeof(buffer), 0);
-    string received_data = string(buffer);
-    cout<<received_data<<endl;
-    xml_handler(received_data, C);
+    while(1) {
+        memset(buffer, 0, sizeof(buffer));
+        recv(client_fd, buffer, sizeof(buffer), 0);
+        string received_data = string(buffer);
+        //cout<<received_data<<endl;
+        string resp = xml_handler(received_data, C);
+        send(client_fd, resp.c_str(), resp.size(), 0);
+    }
+    // recv(client_fd, buffer, sizeof(buffer), 0);
+    // string received_data = string(buffer);
+    // cout<<received_data<<endl;
+    // string resp = xml_handler(received_data, C);
+    // send(client_fd, resp.c_str(), resp.size(), 0);
     close(server_fd);
     return EXIT_SUCCESS;
 }

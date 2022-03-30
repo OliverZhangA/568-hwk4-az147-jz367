@@ -1,6 +1,6 @@
 CC=g++
 CFLAGS=-O3
-EXTRAFLGS=-lpqxx -lpq
+EXTRAFLGS=-lpqxx -lpq -pthread
 all: serv client
 serv: serv.cpp operations.hpp db_operations.cpp xml_operations.cpp tinyxml2.h tinyxml2.cpp
 	$(CC) $(CFLAGS) -g -o serv serv.cpp db_operations.cpp xml_operations.cpp tinyxml2.h tinyxml2.cpp $(EXTRAFLGS)

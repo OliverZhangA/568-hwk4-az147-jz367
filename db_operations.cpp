@@ -1,6 +1,5 @@
 #include "operations.hpp"
-connection* create_table() {
-
+connection* connect_database() {
   //Allocate & initialize a Postgres connection object
   connection *C;
 
@@ -18,6 +17,27 @@ connection* create_table() {
     cerr << e.what() << std::endl;
     exit(EXIT_FAILURE);
   }
+  return C;
+}
+connection* create_table() {
+
+  //Allocate & initialize a Postgres connection object
+  connection *C = connect_database();
+
+  // try{
+  //   //Establish a connection to the database
+  //   //Parameters: database name, user name, user password
+  //   C = new connection("dbname=EXCHANGE user=postgres password=passw0rd");
+  //   if (C->is_open()) {
+  //     cout << "Opened database successfully: " << C->dbname() << endl;
+  //   } else {
+  //     cout << "Can't open database" << endl;
+  //     exit(EXIT_FAILURE);
+  //   }
+  // } catch (const std::exception &e){
+  //   cerr << e.what() << std::endl;
+  //   exit(EXIT_FAILURE);
+  // }
 
 
   //TODO: create PLAYER, TEAM, STATE, and COLOR tables in the ACC_BBALL database
@@ -36,7 +56,7 @@ connection* create_table() {
   string sql_account;
   sql_account = "CREATE TABLE \"ACCOUNT\" (" \
   "\"ACCOUNT_ID\" VARCHAR(20) NOT NULL," \
-  "\"BALANCE\" INT NOT NULL," \
+  "\"BALANCE\" FLOAT NOT NULL," \
   "PRIMARY KEY (\"ACCOUNT_ID\"));";
 
   W.exec(sql_account);
@@ -47,8 +67,8 @@ connection* create_table() {
   "\"BUY_ID\" VARCHAR(20) NOT NULL," \
   "\"SELL_ID\" VARCHAR(20) NOT NULL," \
   "\"SYM\" VARCHAR(20) NOT NULL,"
-  "\"NUM\" INT NOT NULL," \
-  "\"PRICE\" INT NOT NULL," \
+  "\"NUM\" FLOAT NOT NULL," \
+  "\"PRICE\" FLOAT NOT NULL," \
   "\"BUYORDER_ID\" INT NOT NULL," \
   "\"SELLORDER_ID\" INT NOT NULL," \
   "\"STATUS\" VARCHAR(20) DEFAULT \'EXECUTED\' NOT NULL," \
@@ -64,8 +84,8 @@ connection* create_table() {
   "\"ACCOUNT_ID\" VARCHAR(20) NOT NULL," \
   // Is symbol a foreign key?
   "\"SYM\" VARCHAR(20) NOT NULL," \
-  "\"AMOUNT\" INT NOT NULL," \
-  "\"PRICE\" INT NOT NULL," \
+  "\"AMOUNT\" FLOAT NOT NULL," \
+  "\"PRICE\" FLOAT NOT NULL," \
   "\"STATUS\" VARCHAR(10) NOT NULL," \
   "FOREIGN KEY (\"ACCOUNT_ID\") REFERENCES \"ACCOUNT\"(\"ACCOUNT_ID\") ON DELETE CASCADE);";
   W.exec(sql_order);
@@ -75,7 +95,7 @@ connection* create_table() {
   sql_symbol = "CREATE TABLE \"SYMBOL\" (" \
   "\"ACCOUNT_ID\" VARCHAR(20) NOT NULL," \
   "\"SYM\" VARCHAR(20) NOT NULL," \
-  "\"SHARE\" INT NOT NULL," \
+  "\"SHARE\" FLOAT NOT NULL," \
   /*
   "\"TEAM_ID\" INT NOT NULL," \
   "\"UNIFORM_NUM\" INT NOT NULL," \
@@ -121,41 +141,35 @@ connection* create_table() {
 }
 // Check balance cannot be negative
 void create_account(XMLElement* cur, connection * C, string & resp) {
+  account_mtx.lock();
   work W(*C);
   //count if acount exists, if not, create
   stringstream sql0;
-  sql0 << "SELECT COUNT(*) FROM \"ACCOUNT\" WHERE \"ACCOUNT_ID\" = "<<W.quote(cur->Attribute("id"))<<";";
+  sql0 << "SELECT COUNT(*) FROM \"ACCOUNT\" WHERE \"ACCOUNT_ID\" = "<<W.quote(cur->Attribute("id"))<<";;";
   // nontransaction N(*C);
   result R(W.exec(sql0.str()));
   if (R[0][0].as<int>() != 0) {
-    // Respond error
+    // Respond error                                                                      
     resp += "<error id=\"" + string(cur->Attribute("id")) + "\">ACCOUNT_ALREADY_EXISTS</error>\n";
     return;
   }
   stringstream sql;
-  sql <<"INSERT INTO \"ACCOUNT\" VALUES ("<<W.quote(cur->Attribute("id"))<<","<<stoi(cur->Attribute("balance"))<<");";
+  sql <<"INSERT INTO \"ACCOUNT\" VALUES ("<<W.quote(cur->Attribute("id"))<<","<<stod(cur->Attribute("balance"))<<");";
   W.exec(sql.str());
   W.commit();
+  account_mtx.unlock();
   resp += "<created id=\"" + string(cur->Attribute("id")) + "\"/>\n";
-  /*
-  //create the account
-  stringstream sql;
-  sql <<"INSERT INTO \"ACCOUNT\" VALUES ("<<W.quote(cur->Attribute("id"))<<","<<stoi(cur->Attribute("balance"))<<");";
-  //cout<<"account id is "<<cur->Attribute("id")<<" balance is "<<cur->Attribute("balance")<<endl;
-  W.exec(sql.str());
-  result D(W.exec(sql0.str()));
-  cout<<"num is "<<D[0][0].as<int>() <<endl;
-  W.commit();
-  */
 }
 //this is the function for symbol in creation
 void create_symbol(XMLElement* root, connection * C, string & resp) {
   string symname = root->Attribute("sym");
   XMLElement* cur = root->FirstChildElement();
-  work W(*C);
   while(cur) {
     //count if acount exists
     //count if symbol exists
+    sym_mtx.lock();
+    account_mtx.lock();
+    work W(*C);
     stringstream sql0;
     sql0 << "SELECT COUNT(*) FROM \"ACCOUNT\" WHERE \"ACCOUNT_ID\" = "<<W.quote(cur->Attribute("id"))<<";";
     result R(W.exec(sql0.str()));
@@ -171,17 +185,17 @@ void create_symbol(XMLElement* root, connection * C, string & resp) {
         //get the origin share value
         stringstream sql2;
         sql2 << "SELECT \"SHARE\" FROM \"SYMBOL\" WHERE \"ACCOUNT_ID\" = "<<W.quote(cur->Attribute("id"))
-          <<" AND "<<"\"SYM\" = "<<W.quote(symname)<<";";
+          <<" AND "<<"\"SYM\" = "<<W.quote(symname)<<";;";
         result H(W.exec(sql2.str()));
-        int origin_share = H[0][0].as<int>();
-        int add_share = stoi(string(cur->GetText()));
+        int origin_share = H[0][0].as<float>();
+        int add_share = stod(string(cur->GetText()));
         stringstream sql3;
         sql3 <<"UPDATE \"SYMBOL\" SET \"SHARE\"=" << origin_share + add_share << "WHERE \"ACCOUNT_ID\" = "<<W.quote(cur->Attribute("id"))
           <<" AND "<<"\"SYM\" = "<<W.quote(symname)<<";";
         W.exec(sql3.str());
       } else {
         //cout<<"new share is "<<cur->Name()<<endl;
-        int share = stoi(string(cur->GetText()));
+        int share = stod(string(cur->GetText()));
         stringstream sql4;
         sql4 <<"INSERT INTO \"SYMBOL\" VALUES ("<<W.quote(cur->Attribute("id"))<<","<<W.quote(symname)<<","<<share<<");";
         W.exec(sql4.str());
@@ -192,12 +206,13 @@ void create_symbol(XMLElement* root, connection * C, string & resp) {
       resp += "<error sym=\"" + symname + "\" id=\"" + string(cur->Attribute("id")) + "\">ACCOUNT_NOT_EXISTS</error>\n";
     }
     cur = cur->NextSiblingElement();
+    W.commit();
+    sym_mtx.unlock();
+    account_mtx.unlock();
   }
-  W.commit();
 }
 //this is the function for symbol in tra
-void create_symbol(string symname, string account_id, int amount, connection * C) {
-  work W(*C);
+void create_symbol(string symname, string account_id, int amount, connection * C, work & W) {
   //if symbol exists
   stringstream sql1;
   sql1 << "SELECT COUNT(*) FROM \"SYMBOL\" WHERE \"ACCOUNT_ID\" = "<<W.quote(account_id)
@@ -208,9 +223,9 @@ void create_symbol(string symname, string account_id, int amount, connection * C
     //get the origin share value
     stringstream sql2;
     sql2 << "SELECT \"SHARE\" FROM \"SYMBOL\" WHERE \"ACCOUNT_ID\" = "<<W.quote(account_id)
-      <<" AND "<<"\"SYM\" = "<<W.quote(symname)<<";";
+      <<" AND "<<"\"SYM\" = "<<W.quote(symname)<<";;";
     result H(W.exec(sql2.str()));
-    int origin_share = H[0][0].as<int>();
+    int origin_share = H[0][0].as<float>();
     int add_share = amount;
     stringstream sql3;
     sql3 <<"UPDATE \"SYMBOL\" SET \"SHARE\"=" << origin_share + add_share << "WHERE \"ACCOUNT_ID\" = "<<W.quote(account_id)
@@ -224,91 +239,95 @@ void create_symbol(string symname, string account_id, int amount, connection * C
     W.exec(sql4.str());
   }
   //resp += "<created sym=\"" + symname + "\" id=\"" + string(cur->Attribute("id")) + "\"/>";
-  W.commit();
 }
 void create_order(XMLElement* cur, connection * C, string & resp, string account_id) {
   string sym = cur->Attribute("sym");
-  int amount = stoi(cur->Attribute("amount"));
-  int limit = stoi(cur->Attribute("limit"));
+  int amount = stod(cur->Attribute("amount"));
+  int limit = stod(cur->Attribute("limit"));
+  work W(*C);
   if(amount > 0) {
     //to buy
-    work W1(*C);
     string sql_balance;
-    sql_balance = "SELECT \"BALANCE\" FROM \"ACCOUNT\" WHERE \"ACCOUNT_ID\"=\'" + account_id + "\';";
-    result R1(W1.exec(sql_balance));
-    W1.commit();
-    int cur_balance = R1[0][0].as<int>();
+    sql_balance = "SELECT \"BALANCE\" FROM \"ACCOUNT\" WHERE \"ACCOUNT_ID\"=\'" + account_id + "\';;";
+    result R1(W.exec(sql_balance));
+    //W1.commit();
+    int cur_balance = R1[0][0].as<float>();
     if (amount * limit <= cur_balance) {
-      work W2(*C);
+      //work W2(*C);
       string sql_deduct;
       sql_deduct = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=" + to_string(cur_balance - amount * limit) + "WHERE " \
       "\"ACCOUNT_ID\"=\'" + account_id +"\';";
-      W2.exec(sql_deduct);
-      W2.commit();
+      W.exec(sql_deduct);
+      //W2.commit();
     } else {
       // buyer not having enough money, respond error
       resp += "<error sym=\""+sym+"\" amount=\""+to_string(amount)+"\" limit=\""
             +to_string(limit)+"\">Buyer not having enough money to post the order!</error>\n";
+      W.commit();
       return;
     }
-    buy_match(cur, C, resp, account_id);
+    buy_match(cur, C, resp, account_id, W);
   } else if(amount < 0) {
     //to sell
     amount = -amount;
-    work W3(*C);
     string sql_share;
+    // sql_share = "SELECT \"SHARE\" FROM \"SYMBOL\" WHERE \"ACCOUNT_ID\"=\'" + account_id + "\' AND \"SYM\"=\'" 
+    // + sym + "\';;";
     sql_share = "SELECT \"SHARE\" FROM \"SYMBOL\" WHERE \"ACCOUNT_ID\"=\'" + account_id + "\' AND \"SYM\"=\'" 
-    + sym + "\';";
-    result R2(W3.exec(sql_share));
-    W3.commit();
-    int cur_share = R2[0][0].as<int>();
+    + sym + "\';;";
+    result R2(W.exec(sql_share));
+    //W3.commit();
+    int cur_share = R2[0][0].as<float>();
     if (amount <= cur_share) {
-      work W4(*C);
+      //work W4(*C);
       string sql_deduct;
       sql_deduct = "UPDATE \"SYMBOL\" SET \"SHARE\"=" + to_string(cur_share - amount) + "WHERE " \
       "\"ACCOUNT_ID\"=\'" + account_id + "\' AND \"SYM\"=\'" + sym + "\';";
-      W4.exec(sql_deduct);
-      W4.commit();
+      W.exec(sql_deduct);
+      //W4.commit();
     } else {
       // if seller does not have enough share, respond error
       resp += "<error sym=\""+sym+"\" amount=\""+to_string(-amount)+"\" limit=\""
             +to_string(limit)+"\">Seller not having enough share to post the order!</error>\n";
+      W.commit();
       return;
     }
-    sell_match(cur, C, resp, account_id);
+    sell_match(cur, C, resp, account_id, W);
   } else {
     //if amount in order is 0, report error
     resp += "<error sym=\""+sym+"\" amount=\""+to_string(-amount)+"\" limit=\""
             +to_string(limit)+"\">order amount is 0, this order is invalid!</error>\n";
+    W.commit();
     return;
   }
+  W.commit();
 }
-void buy_match(XMLElement* cur, connection * C, string & resp, string account_id) {
+void buy_match(XMLElement* cur, connection * C, string & resp, string account_id, work & W) {
   string sym = cur->Attribute("sym");
-  int amount = stoi(cur->Attribute("amount"));
-  int limit = stoi(cur->Attribute("limit"));
-  work W0(*C);
+  int amount = stod(cur->Attribute("amount"));
+  int limit = stod(cur->Attribute("limit"));
+  //work W0(*C);
   string add_buy_order;
   add_buy_order = "INSERT INTO \"ORDER\" (\"ACCOUNT_ID\", \"SYM\", \"AMOUNT\", \"PRICE\", \"STATUS\") VALUES (\'" 
   + account_id + "\', \'" + sym + "\', " + to_string(amount) 
   + ", " + to_string(limit) + ", \'BUY\') RETURNING \"ID\";";
-  result R0(W0.exec(add_buy_order));
-  W0.commit();
+  result R0(W.exec(add_buy_order));
+  //W0.commit();
   int buy_order_id = R0[0][0].as<int>();
   //add open statement to response
   resp+="<opened sym=\""+sym+"\" amount=\""+to_string(amount)+"\" limit=\""
         +to_string(limit)+"\" id=\""+to_string(buy_order_id)+"\"/>\n";
   //
-  work W1(*C);
+  //work W1(*C);
   string sql_sell;
   sql_sell = "SELECT * FROM \"ORDER\" WHERE \"STATUS\" = \'SELL\' AND \"SYM\"=\'" + sym + "\' AND \"PRICE\"<="
-  + to_string(limit) + " ORDER BY \"PRICE\" ASC";
-  result R(W1.exec(sql_sell));
-  W1.commit();
+  + to_string(limit) + " ORDER BY \"PRICE\" ASC;;";
+  result R(W.exec(sql_sell));
+  // W.commit();
   for (result::const_iterator c = R.begin(); c != R.end(); ++c) {
-    work W(*C);
+    //work W(*C);
     // if (c[4].as<int>() <= limit) {
-    if (c[3].as<int>() > amount) {
+    if (c[3].as<float>() > amount) {
       // Add a transaction
       // Update seller amount, account
       // Update buyer's share
@@ -316,25 +335,25 @@ void buy_match(XMLElement* cur, connection * C, string & resp, string account_id
       string sql_trans;
       sql_trans = "INSERT INTO \"TRANSACTION\" (\"BUY_ID\", \"SELL_ID\", \"SYM\", \"NUM\", \"PRICE\", \"BUYORDER_ID\", \"SELLORDER_ID\") VALUES (\'" 
       + account_id + "\', \'" + c[1].as<string>() + "\', \'" 
-      + sym + "\', " + to_string(amount) + ", " + to_string(c[4].as<int>()) + ", " + to_string(buy_order_id) + ", " + to_string(c[0].as<int>()) + ");";
+      + sym + "\', " + to_string(amount) + ", " + to_string(c[4].as<float>()) + ", " + to_string(buy_order_id) + ", " + to_string(c[0].as<int>()) + ");";
       W.exec(sql_trans);
       string sql_amount;
-      sql_amount = "UPDATE \"ORDER\" SET \"AMOUNT\"=" + to_string(c[3].as<int>() - amount) + " WHERE \"ID\"=" + to_string(c[0].as<int>()) + ";";
+      sql_amount = "UPDATE \"ORDER\" SET \"AMOUNT\"=" + to_string(c[3].as<float>() - amount) + " WHERE \"ID\"=" + to_string(c[0].as<int>()) + ";";
       W.exec(sql_amount);
       string sql_balance;
-      sql_balance = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(amount*c[4].as<int>())+" WHERE \"ACCOUNT_ID\"=\'"+c[1].as<string>()+"\';";
+      sql_balance = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(amount*c[4].as<float>())+" WHERE \"ACCOUNT_ID\"=\'"+c[1].as<string>()+"\';";
       W.exec(sql_balance);
-      W.commit();
-      create_symbol(sym, account_id, amount, C);
+      //W.commit();
+      create_symbol(sym, account_id, amount, C, W);
       //refund delta
-      work W5(*C);
+      //work W5(*C);
       string sql_refund;
-      sql_refund = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(amount*(limit - c[4].as<int>()))+" WHERE \"ACCOUNT_ID\"=\'"+account_id+"\';";
-      W5.exec(sql_refund);
+      sql_refund = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(amount*(limit - c[4].as<float>()))+" WHERE \"ACCOUNT_ID\"=\'"+account_id+"\';";
+      W.exec(sql_refund);
       amount = 0;
-      W5.commit();
+      //W5.commit();
       break;
-    } else if (c[3].as<int>() < amount) {
+    } else if (c[3].as<float>() < amount) {
       // delete seller order, update seller's account
       // add a transaction, and update buyer's amount
       // go on
@@ -343,24 +362,24 @@ void buy_match(XMLElement* cur, connection * C, string & resp, string account_id
       W.exec(delete_sellorder);
 
       string sql_seller_balance;
-      sql_seller_balance = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(amount*c[4].as<int>())+" WHERE \"ACCOUNT_ID\"=\'"+c[1].as<string>()+"\';";
+      sql_seller_balance = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(amount*c[4].as<float>())+" WHERE \"ACCOUNT_ID\"=\'"+c[1].as<string>()+"\';";
       W.exec(sql_seller_balance);
 
       string sql_trans;
       sql_trans = "INSERT INTO \"TRANSACTION\" (\"BUY_ID\", \"SELL_ID\", \"SYM\", \"NUM\", \"PRICE\", \"BUYORDER_ID\", \"SELLORDER_ID\") VALUES (\'" 
       + account_id + "\', \'" + c[1].as<string>() + "\', \'" 
-      + sym + "\', " + to_string(c[3].as<int>()) + ", " + to_string(c[4].as<int>()) + ", " + to_string(buy_order_id) + ", " + to_string(c[0].as<int>()) + ");";
+      + sym + "\', " + to_string(c[3].as<float>()) + ", " + to_string(c[4].as<float>()) + ", " + to_string(buy_order_id) + ", " + to_string(c[0].as<int>()) + ");";
       W.exec(sql_trans);
-      W.commit();
+      //W.commit();
 
-      create_symbol(sym, account_id, c[3].as<int>(), C);
-      amount-=c[3].as<int>();
+      create_symbol(sym, account_id, c[3].as<float>(), C, W);
+      amount-=c[3].as<float>();
       //refund delta
-      work W6(*C);
+      //work W6(*C);
       string sql_refund;
-      sql_refund = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(c[3].as<int>()*(limit - c[4].as<int>()))+" WHERE \"ACCOUNT_ID\"=\'"+account_id+"\';";
-      W6.exec(sql_refund);
-      W6.commit();
+      sql_refund = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(c[3].as<float>()*(limit - c[4].as<float>()))+" WHERE \"ACCOUNT_ID\"=\'"+account_id+"\';";
+      W.exec(sql_refund);
+      //W6.commit();
     } else {
       // delete seller order, update seller's account
       // add a transaction, update buyer's amount
@@ -369,85 +388,85 @@ void buy_match(XMLElement* cur, connection * C, string & resp, string account_id
       W.exec(delete_sellorder);
 
       string sql_seller_balance;
-      sql_seller_balance = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(amount*c[4].as<int>())+" WHERE \"ACCOUNT_ID\"=\'"+c[1].as<string>()+"\';";
+      sql_seller_balance = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(amount*c[4].as<float>())+" WHERE \"ACCOUNT_ID\"=\'"+c[1].as<string>()+"\';";
       W.exec(sql_seller_balance);
 
       string sql_trans;
       sql_trans = "INSERT INTO \"TRANSACTION\" (\"BUY_ID\", \"SELL_ID\", \"SYM\", \"NUM\", \"PRICE\", \"BUYORDER_ID\", \"SELLORDER_ID\") VALUES (\'" + account_id + "\', \'" + c[1].as<string>() + "\', \'" 
-      + sym + "\', " + to_string(c[3].as<int>()) + ", " + to_string(c[4].as<int>()) + ", " + to_string(buy_order_id) + ", " + to_string(c[0].as<int>()) + ");";
+      + sym + "\', " + to_string(c[3].as<float>()) + ", " + to_string(c[4].as<float>()) + ", " + to_string(buy_order_id) + ", " + to_string(c[0].as<int>()) + ");";
       W.exec(sql_trans);
-      W.commit();
+      // W.commit();
 
-      create_symbol(sym, account_id, c[3].as<int>(), C);
-      amount-=c[3].as<int>();
+      create_symbol(sym, account_id, c[3].as<float>(), C, W);
+      amount-=c[3].as<float>();
       //refund delta
-      work W7(*C);
+      //work W7(*C);
       string sql_refund;
-      sql_refund = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(c[3].as<int>()*(limit - c[4].as<int>()))+" WHERE \"ACCOUNT_ID\"=\'"+account_id+"\';";
-      W7.exec(sql_refund);
+      sql_refund = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(c[3].as<float>()*(limit - c[4].as<float>()))+" WHERE \"ACCOUNT_ID\"=\'"+account_id+"\';";
+      W.exec(sql_refund);
 
-      W7.commit();
+      //W7.commit();
       break;
     }
   }
-  work W2(*C);
+  //work W2(*C);
   if(amount != 0) {
     //insert the buyer order
     string update_buyer_order;
     update_buyer_order = "UPDATE \"ORDER\" SET \"AMOUNT\"=" + to_string(amount) + " WHERE \"ID\"=" + to_string(buy_order_id) + ";";
-    W2.exec(update_buyer_order);
+    W.exec(update_buyer_order);
   } else {
     string delete_buyer_order;
     delete_buyer_order = "DELETE FROM \"ORDER\" WHERE \"ID\"=" + to_string(buy_order_id) + ";";
-    W2.exec(delete_buyer_order);
+    W.exec(delete_buyer_order);
   }
-  W2.commit();
+  //W2.commit();
 }
-void sell_match(XMLElement* cur, connection * C, string & resp, string account_id) {
+void sell_match(XMLElement* cur, connection * C, string & resp, string account_id, work & W) {
   string sym = cur->Attribute("sym");
-  int amount = -stoi(cur->Attribute("amount"));
-  int limit = stoi(cur->Attribute("limit"));
-  work W0(*C);
+  int amount = -stod(cur->Attribute("amount"));
+  int limit = stod(cur->Attribute("limit"));
+  //work W0(*C);
   string add_sell_order;
   add_sell_order = "INSERT INTO \"ORDER\" (\"ACCOUNT_ID\", \"SYM\", \"AMOUNT\", \"PRICE\", \"STATUS\") VALUES (\'" 
   + account_id + "\', \'" + sym + "\', " + to_string(amount) 
   + ", " + to_string(limit) + ", \'SELL\') RETURNING \"ID\";";
-  result R0(W0.exec(add_sell_order));
-  W0.commit();
+  result R0(W.exec(add_sell_order));
+  //W0.commit();
   int sell_order_id = R0[0][0].as<int>();
   //add open statement to response
   resp+="<opened sym=\""+sym+"\" amount=\""+to_string(-amount)+"\" limit=\""
         +to_string(limit)+"\" id=\""+to_string(sell_order_id)+"\"/>\n";
   //
-  work W1(*C);
+  //work W1(*C);
   string sql_buy;
   sql_buy = "SELECT * FROM \"ORDER\" WHERE \"STATUS\" = \'BUY\' AND \"SYM\"=\'" + sym + "\' AND \"PRICE\">="
-  + to_string(limit) + " ORDER BY \"PRICE\" DESC";
-  result R(W1.exec(sql_buy));
-  W1.commit();
+  + to_string(limit) + " ORDER BY \"PRICE\" DESC;;";
+  result R(W.exec(sql_buy));
+  //W1.commit();
   for (result::const_iterator c = R.begin(); c != R.end(); ++c) {
-    work W(*C);
+    //work W(*C);
     // if (c[4].as<int>() <= limit) {
-    if (c[3].as<int>() > amount) {
+    if (c[3].as<float>() > amount) {
       // Add a transaction
       // Update seller amount, account
       // Update buyer's share
       // break
       string sql_trans;
       sql_trans = "INSERT INTO \"TRANSACTION\" (\"BUY_ID\", \"SELL_ID\", \"SYM\", \"NUM\", \"PRICE\", \"BUYORDER_ID\", \"SELLORDER_ID\") VALUES (\'" + c[1].as<string>() + "\', \'" + account_id + "\', \'" 
-      + sym + "\', " + to_string(amount) + ", " + to_string(c[4].as<int>()) + ", " + to_string(c[0].as<int>()) + ", " + to_string(sell_order_id) + ");";
+      + sym + "\', " + to_string(amount) + ", " + to_string(c[4].as<float>()) + ", " + to_string(c[0].as<int>()) + ", " + to_string(sell_order_id) + ");";
       W.exec(sql_trans);
       string sql_amount;
       sql_amount = "UPDATE \"ORDER\" SET \"AMOUNT\"=\"AMOUNT\"-" + to_string(amount) + " WHERE \"ID\"=" + to_string(c[0].as<int>()) + ";";
       W.exec(sql_amount);
       string sql_balance;
-      sql_balance = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(amount*c[4].as<int>())+" WHERE \"ACCOUNT_ID\"=\'"+account_id+"\';";
+      sql_balance = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(amount*c[4].as<float>())+" WHERE \"ACCOUNT_ID\"=\'"+account_id+"\';";
       W.exec(sql_balance);
-      W.commit();
-      create_symbol(sym, c[1].as<string>(), amount, C);
+      //W.commit();
+      create_symbol(sym, c[1].as<string>(), amount, C, W);
       amount = 0;
       break;
-    } else if (c[3].as<int>() < amount) {
+    } else if (c[3].as<float>() < amount) {
       // delete seller order, update seller's account
       // add a transaction, and update buyer's amount
       // go on
@@ -456,17 +475,17 @@ void sell_match(XMLElement* cur, connection * C, string & resp, string account_i
       W.exec(delete_buyorder);
 
       string sql_seller_balance;
-      sql_seller_balance = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(c[3].as<int>()*c[4].as<int>())+" WHERE \"ACCOUNT_ID\"=\'"+account_id+"\';";
+      sql_seller_balance = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(c[3].as<float>()*c[4].as<float>())+" WHERE \"ACCOUNT_ID\"=\'"+account_id+"\';";
       W.exec(sql_seller_balance);
 
       string sql_trans;
       sql_trans = "INSERT INTO \"TRANSACTION\" (\"BUY_ID\", \"SELL_ID\", \"SYM\", \"NUM\", \"PRICE\", \"BUYORDER_ID\", \"SELLORDER_ID\") VALUES (\'" 
       + c[1].as<string>() + "\', \'" + account_id + "\', \'" 
-      + sym + "\', " + to_string(c[3].as<int>()) + ", " + to_string(c[4].as<int>()) + ", " + to_string(c[0].as<int>()) + ", " + to_string(sell_order_id) + ");";
+      + sym + "\', " + to_string(c[3].as<float>()) + ", " + to_string(c[4].as<float>()) + ", " + to_string(c[0].as<int>()) + ", " + to_string(sell_order_id) + ");";
       W.exec(sql_trans);
-      W.commit();
-      create_symbol(sym, c[1].as<string>(), c[3].as<int>(), C);
-      amount-=c[3].as<int>();
+      //W.commit();
+      create_symbol(sym, c[1].as<string>(), c[3].as<float>(), C, W);
+      amount-=c[3].as<float>();
     } else {
       // delete seller order, update seller's account
       // add a transaction, update buyer's amount
@@ -475,33 +494,33 @@ void sell_match(XMLElement* cur, connection * C, string & resp, string account_i
       W.exec(delete_buyorder);
 
       string sql_seller_balance;
-      sql_seller_balance = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(c[3].as<int>()*c[4].as<int>())+" WHERE \"ACCOUNT_ID\"=\'"+account_id+"\';";
+      sql_seller_balance = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+"+to_string(c[3].as<float>()*c[4].as<float>())+" WHERE \"ACCOUNT_ID\"=\'"+account_id+"\';";
       W.exec(sql_seller_balance);
 
       string sql_trans;
       sql_trans = "INSERT INTO \"TRANSACTION\" (\"BUY_ID\", \"SELL_ID\", \"SYM\", \"NUM\", \"PRICE\", \"BUYORDER_ID\", \"SELLORDER_ID\") VALUES (\'" 
       + c[1].as<string>() + "\', \'" + account_id + "\', \'" 
-      + sym + "\', " + to_string(c[3].as<int>()) + ", " + to_string(c[4].as<int>()) + ", " + to_string(c[0].as<int>()) + ", " + to_string(sell_order_id) + ");";
+      + sym + "\', " + to_string(c[3].as<float>()) + ", " + to_string(c[4].as<float>()) + ", " + to_string(c[0].as<int>()) + ", " + to_string(sell_order_id) + ");";
       W.exec(sql_trans);
-      W.commit();
-      create_symbol(sym, c[1].as<string>(), c[3].as<int>(), C);
-      amount-=c[3].as<int>();
+      //W.commit();
+      create_symbol(sym, c[1].as<string>(), c[3].as<float>(), C, W);
+      amount-=c[3].as<float>();
       // W.commit();
       break;
     }
   }
-  work W2(*C);
+  //work W2(*C);
   if(amount != 0) {
     //insert the buyer order
     string update_seller_order;
     update_seller_order = "UPDATE \"ORDER\" SET \"AMOUNT\"=" + to_string(amount) + " WHERE \"ID\"=" + to_string(sell_order_id) + ";";
-    W2.exec(update_seller_order);
+    W.exec(update_seller_order);
   } else {
     string delete_seller_order;
     delete_seller_order = "DELETE FROM \"ORDER\" WHERE \"ID\"=" + to_string(sell_order_id) + ";";
-    W2.exec(delete_seller_order);
+    W.exec(delete_seller_order);
   }
-  W2.commit();
+  //W2.commit();
 }
 void create_query(XMLElement* cur, connection * C, string & resp, string account_id) {
   int trans_id = stoi(cur->Attribute("id"));
@@ -523,9 +542,9 @@ void create_query(XMLElement* cur, connection * C, string & resp, string account
   resp+="<status id=\""+to_string(trans_id)+"\">\n";
   if (R0[0][0].as<int>() > 0) {
     string open_shares;
-    open_shares = "SELECT \"AMOUNT\" FROM \"ORDER\" WHERE \"ID\"=" + to_string(trans_id) + ";";
+    open_shares = "SELECT \"AMOUNT\" FROM \"ORDER\" WHERE \"ID\"=" + to_string(trans_id) + ";;";
     result R1(W0.exec(open_shares));
-    int share_amount = R1[0][0].as<int>();
+    int share_amount = R1[0][0].as<float>();
     resp += "<open shares=\"" + to_string(share_amount) + "\"/>\n";
   }
   
@@ -537,19 +556,20 @@ void create_query(XMLElement* cur, connection * C, string & resp, string account
     //find cancel
     //?????????how to extract timestamp from result object????????????
     string find_cancel = "SELECT \"NUM\", \"TRANS_TIME\" FROM \"TRANSACTION\" WHERE (\"BUYORDER_ID\"=" + to_string(trans_id) 
-                        + " OR \"SELLORDER_ID\"=" + to_string(trans_id) + ") AND " + "\"STATUS\"=\'CANCELED\'"+";";
+                        + " OR \"SELLORDER_ID\"=" + to_string(trans_id) + ") AND " + "\"STATUS\"=\'CANCELED\'"+";;";
     result R3(W0.exec(find_cancel));
     for(result::const_iterator it = R3.begin(); it != R3.end(); ++it) {
-      resp += "<canceled shares=\"" + to_string(it[0].as<int>()) + "\" time=\"" + it[1].as<string>() + "\"/>\n";
+      resp += "<canceled shares=\"" + to_string(it[0].as<float>()) + "\" time=\"" + it[1].as<string>() + "\"/>\n";
     }
     //find execute
     string find_execute = "SELECT \"NUM\", \"PRICE\", \"TRANS_TIME\" FROM \"TRANSACTION\" WHERE (\"BUYORDER_ID\"=" + to_string(trans_id) 
-                        + " OR \"SELLORDER_ID\"=" + to_string(trans_id) + ") AND " + "\"STATUS\"=\'EXECUTED\'"+";";
+                        + " OR \"SELLORDER_ID\"=" + to_string(trans_id) + ") AND " + "\"STATUS\"=\'EXECUTED\'"+";;";
     result R4(W0.exec(find_execute));
     for(result::const_iterator it = R4.begin(); it != R4.end(); ++it) {
-      resp += "<executed shares=\"" + to_string(it[0].as<int>()) + "\" price=\""+ to_string(it[1].as<int>()) +"\" time=\"" + it[2].as<string>() + "\"/>\n";
+      resp += "<executed shares=\"" + to_string(it[0].as<float>()) + "\" price=\""+ to_string(it[1].as<float>()) +"\" time=\"" + it[2].as<string>() + "\"/>\n";
     }
   }
+  W0.commit();
   resp += "</status>\n";
 }
 void create_cancel(XMLElement* cur, connection * C, string & resp, string account_id) {
@@ -565,19 +585,19 @@ void create_cancel(XMLElement* cur, connection * C, string & resp, string accoun
   if(R0[0][0].as<int>() != 0) {
     //retrieve the order info
     string get_order;
-    get_order = "SELECT * FROM \"ORDER\" WHERE \"ID\"="+ to_string(order_id) + ";";
+    get_order = "SELECT * FROM \"ORDER\" WHERE \"ID\"="+ to_string(order_id) + ";;";
     result R1(W.exec(get_order));
     //refund to whatever buyer or seller
     if(R1[0][5].as<string>() == "BUY") {
       //refund money to buyer
       string refund_money;
-      refund_money = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+" + to_string(R1[0][3].as<int>() * R1[0][4].as<int>())
+      refund_money = "UPDATE \"ACCOUNT\" SET \"BALANCE\"=\"BALANCE\"+" + to_string(R1[0][3].as<float>() * R1[0][4].as<float>())
                     + "WHERE \"ACCOUNT_ID\"=" + W.quote(R1[0][1].as<string>()) + ";";
       W.exec(refund_money);
     } else {
       //refund share to seller
       string refund_share;
-      refund_share = "UPDATE \"SYMBOL\" SET \"SHARE\"=\"SHARE\"+" + to_string(R1[0][3].as<int>()) 
+      refund_share = "UPDATE \"SYMBOL\" SET \"SHARE\"=\"SHARE\"+" + to_string(R1[0][3].as<float>()) 
                     + "WHERE \"ACCOUNT_ID\"=" + W.quote(R1[0][1].as<string>()) + " AND \"SYM\"="+W.quote(R1[0][2].as<string>()) + ";";
       W.exec(refund_share);
     }
@@ -588,21 +608,21 @@ void create_cancel(XMLElement* cur, connection * C, string & resp, string accoun
     string add_cancellation;
     add_cancellation = "INSERT INTO \"TRANSACTION\" (\"BUY_ID\", \"SELL_ID\", \"SYM\", \"NUM\", \"PRICE\", \"BUYORDER_ID\", \"SELLORDER_ID\", \"STATUS\") VALUES(\'" + R1[0][1].as<string>() + "\', \'" + R1[0][1].as<string>() + "\', " 
                         + W.quote(R1[0][2].as<string>()) +", "
-                        +to_string(R1[0][3].as<int>())+ ", " + to_string(R1[0][4].as<int>()) + ", "+ to_string(R1[0][0].as<int>()) + ", " 
+                        +to_string(R1[0][3].as<float>())+ ", " + to_string(R1[0][4].as<float>()) + ", "+ to_string(R1[0][0].as<int>()) + ", " 
                         + to_string(R1[0][0].as<int>()) + ", \'CANCELED\'" +") RETURNING \"TRANS_TIME\";";
     W.exec(del_order);
     result R2(W.exec(add_cancellation));
-    W.commit();
+    //W.commit();
     //string cancel_time = R2[0][0].as<string>;
     resp += "<canceled id=\"" + to_string(order_id) + "\">\n";
-    resp += "<canceled shares=\"" + to_string(R1[0][3].as<int>()) + "\" time=\"" + R2[0][0].as<string>() +"\"/>\n";
+    resp += "<canceled shares=\"" + to_string(R1[0][3].as<float>()) + "\" time=\"" + R2[0][0].as<string>() +"\"/>\n";
     //executed shares
-    work W0(*C);
+    //work W0(*C);
     string find_execute = "SELECT \"NUM\", \"PRICE\", \"TRANS_TIME\" FROM \"TRANSACTION\" WHERE (\"BUYORDER_ID\"=" + to_string(order_id) 
-                        + " OR \"SELLORDER_ID\"=" + to_string(order_id) + ") AND " + "\"STATUS\"=\'EXECUTED\'"+";";
-    result R4(W0.exec(find_execute));
+                        + " OR \"SELLORDER_ID\"=" + to_string(order_id) + ") AND " + "\"STATUS\"=\'EXECUTED\'"+";;";
+    result R4(W.exec(find_execute));
     for(result::const_iterator it = R4.begin(); it != R4.end(); ++it) {
-      resp += "<executed shares=\"" + to_string(it[0].as<int>()) + "\" price=\""+ to_string(it[1].as<int>()) +"\" time=\"" + it[2].as<string>() + "\"/>\n";
+      resp += "<executed shares=\"" + to_string(it[0].as<float>()) + "\" price=\""+ to_string(it[1].as<float>()) +"\" time=\"" + it[2].as<string>() + "\"/>\n";
     }
     //
     resp += "</canceled>\n";
@@ -611,4 +631,5 @@ void create_cancel(XMLElement* cur, connection * C, string & resp, string accoun
     //cout<<"***************"<<endl<<"cannot cancel none open order!!!"<<"***************"<<endl;
     //cancelling a none open order!!
   }
+  W.commit();
 }

@@ -1,13 +1,4 @@
 #include "operations.hpp"
-#include <vector>
-#include <utility>
-#include <algorithm>
-#include <arpa/inet.h>
-#include <iostream>
-#include <cstring>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <unistd.h>
 using namespace std;
 
 // vector<string> split_str(string & str) {
@@ -74,6 +65,8 @@ int initserver(const char * port) {
 int main(int argc, char* argv[]) {
     //initialize the tables
     connection* C = create_table();
+    C->disconnect();
+    delete C;
     const char* port_num = "12345";
     //generate ringmaster
     int server_fd = initserver(port_num);
@@ -82,29 +75,37 @@ int main(int argc, char* argv[]) {
     struct sockaddr_storage socket_addr;
     socklen_t socket_addr_len = sizeof(socket_addr);
     int client_fd;
-    client_fd = accept(server_fd, (struct sockaddr *)&socket_addr, &socket_addr_len);
-    if (client_fd == -1) {
-        cerr << "Error: cannot accept connection on socket" << endl;
-        exit(EXIT_FAILURE);
+    while(1) {
+        client_fd = accept(server_fd, (struct sockaddr *)&socket_addr, &socket_addr_len);
+        cout<<"client_fd is "<<client_fd<<endl;
+        if (client_fd == -1) {
+            cerr << "Error: cannot accept connection on socket" << endl;
+            continue;
+            //exit(EXIT_FAILURE);
+        }
+        thread newthread(handle_request, client_fd);
+        newthread.detach();
     }
+    
     // send(player_connection_fd, total_num, sizeof(num_players), 0);
     // send(player_connection_fd, rank, sizeof(i), 0);
 
         //???no need to keep track of ports because we can always get it from socket_storage
-    char buffer[65535];
-    while(1) {
-        memset(buffer, 0, sizeof(buffer));
-        recv(client_fd, buffer, sizeof(buffer), 0);
-        string received_data = string(buffer);
-        //cout<<received_data<<endl;
-        string resp = xml_handler(received_data, C);
-        send(client_fd, resp.c_str(), resp.size(), 0);
-    }
+    // char buffer[65535];
+    // while(1) {
+    //     memset(buffer, 0, sizeof(buffer));
+    //     recv(client_fd, buffer, sizeof(buffer), 0);
+    //     string received_data = string(buffer);
+    //     //cout<<received_data<<endl;
+    //     string resp = xml_handler(received_data, C);
+    //     send(client_fd, resp.c_str(), resp.size(), 0);
+    // }
     // recv(client_fd, buffer, sizeof(buffer), 0);
     // string received_data = string(buffer);
     // cout<<received_data<<endl;
     // string resp = xml_handler(received_data, C);
     // send(client_fd, resp.c_str(), resp.size(), 0);
+    //freeaddrinfo();
     close(server_fd);
     return EXIT_SUCCESS;
 }

@@ -134,6 +134,7 @@ int main(int argc, char* argv[]) {
     // "</symbol>" \
     // "</create>";
     //char send_data[] = buff.c_str();
+    //cout<<"num of requests is "<<buff_vec.size()<<endl;
     for (size_t i = 0; i < buff_vec.size(); ++i) {
       //cout<<"client sending xml data: "<<endl<<buff<<endl;
       send(player_socknum, buff_vec[i].c_str(), buff.size(), 0);

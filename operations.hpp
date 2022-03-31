@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 #include <sstream>
-
+#include <ctime>
 using namespace std;
 using namespace pqxx;
 //header for Xml operations
@@ -44,3 +44,5 @@ void create_query(XMLElement* cur, connection * C, string & resp, string account
 void create_cancel(XMLElement* cur, connection * C, string & resp, string account_id);
 void buy_match(XMLElement* cur, connection * C, string & resp, string account_id, work & W);
 void sell_match(XMLElement* cur, connection * C, string & resp, string account_id, work & W);
+string trim_num(float f);
+string get_time();

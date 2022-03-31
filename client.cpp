@@ -21,6 +21,7 @@ string readin_file(string filename){
     cerr<<"can not open and read the file!"<<endl;
     exit(EXIT_FAILURE);
   }
+  infile.close();
   return ret;
 }
 
@@ -105,6 +106,10 @@ int initclient(const char* hostname, const char* port) {
 //     return ntohs(sock.sin_port);
 // }
 int main(int argc, char* argv[]) {
+    if(argc != 4) {
+      cout<<"usage: filename, query_id, account_id"<<endl;
+      return EXIT_FAILURE;
+    }
     const char* master_name = "vcm-24561.vm.duke.edu";
     const char* port_num = "12345";
     int status;
@@ -115,7 +120,7 @@ int main(int argc, char* argv[]) {
     //send port num of this client, how to get it?
     //cout<<"selfsockfd is"<<self_sockfd<<endl;
     //int player_portnum = fetch_portnum(self_sockfd);
-    string buff = readin_file("testin.txt");
+    string buff = readin_file(string(argv[1]));
     vector<string> buff_vec = split_str(buff);
     /*
     cout << buff_vec.size() << endl;
@@ -135,16 +140,36 @@ int main(int argc, char* argv[]) {
     // "</create>";
     //char send_data[] = buff.c_str();
     //cout<<"num of requests is "<<buff_vec.size()<<endl;
+    time_t start = time(NULL);
     for (size_t i = 0; i < buff_vec.size(); ++i) {
       //cout<<"client sending xml data: "<<endl<<buff<<endl;
-      send(player_socknum, buff_vec[i].c_str(), buff.size(), 0);
+      send(player_socknum, buff_vec[i].c_str(), buff_vec[i].length() + 1, 0);
       char buffer[65535];
       memset(buffer, 0, sizeof(buffer));
       recv(player_socknum, buffer, sizeof(buffer), 0);
-      cout<<"*************************"<<endl;
-      cout<<"response received:\n"<<string(buffer);
-      cout<<"*************************"<<endl<<endl;
+      //cout<<"*************************"<<endl;
+      //cout<<"response received:\n"<<string(buffer);
+      //cout<<"*************************"<<endl<<endl;
     }
+
+    for (size_t i = 0; i < 100000; ++i) {
+      string req("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+      req += "<transactions id=\"" + string(argv[3]) + "\">";
+      req += "<query id=\"" + string(argv[2]) + "\"/>";
+      req += "</transactions>";
+      send(player_socknum, req.c_str(), req.length() + 1, 0);
+      char buffer[65535];
+      memset(buffer, 0, sizeof(buffer));
+      recv(player_socknum, buffer, sizeof(buffer), 0);
+      //cout<<"*************************"<<endl;
+      //cout<<"response received:\n"<<string(buffer);
+      //cout<<"*************************"<<endl<<endl;
+    }
+
+    time_t end = time(NULL);
+    cout << "Total time used: " << end - start << "s" << endl;
+    cout << "Start time: " << start << endl;
+    cout << "End time: " << end << endl;
     /*
     cout<<"client sending xml data: "<<endl<<buff<<endl;
     send(player_socknum, buff.c_str(), buff.size(), 0);
@@ -153,5 +178,6 @@ int main(int argc, char* argv[]) {
     cout<<"response received:"<<string(buffer)<<endl;
     */
     close(player_socknum);
+    cout<<"before return"<<endl;
     return EXIT_SUCCESS;
 }

@@ -3,6 +3,18 @@ mutex account_mtx;
 mutex sym_mtx;
 mutex trans_mtx;
 mutex order_mtx;
+
+string trim_num(float f) {
+    std::string str = std::to_string(f);
+    str.erase (str.find_last_not_of('0') + 1, std::string::npos);
+    if(str.find('.')==str.size()-1){
+        str.erase(str.end() - 1);
+    }
+    return str;
+}
+string get_time() {
+    return to_string(time(NULL));
+}
 void transactions_handler(XMLElement* root, connection* C, string &resp) {
     string account_id = root->Attribute("id");
     work W0(*C);
@@ -99,6 +111,7 @@ string xml_handler(string xmltext, connection* C){
 void handle_request(int client_fd) {
     connection* C = connect_database();
     char buffer[65535];
+    cout<<"going to handle request"<<endl;
     while(1){
         memset(buffer, 0, sizeof(buffer));
         int recsize = recv(client_fd, buffer, sizeof(buffer), 0);

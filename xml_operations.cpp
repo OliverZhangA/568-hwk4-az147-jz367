@@ -48,9 +48,9 @@ void transactions_handler(XMLElement* root, connection* C, string &resp) {
             //     // Respond error (account does not exist)
             //     resp += "<error sym=\"" + symname + "\" id=\"" + string(cur->Attribute("id")) + "\">ACCOUNT_NOT_EXISTS</error>";
             // }
-            sym_mtx.unlock();
-            trans_mtx.unlock();
             order_mtx.unlock();
+            trans_mtx.unlock();
+            sym_mtx.unlock();
         } else if(strcmp(cur->Name(), "query") == 0) {
             //cout<<"cancelling order!"<<endl;
             create_query(cur, C, resp, account_id);
@@ -61,8 +61,8 @@ void transactions_handler(XMLElement* root, connection* C, string &resp) {
             //account_mtx.lock();
             create_cancel(cur, C, resp, account_id);
             //sym_mtx.lock();
-            trans_mtx.unlock();
             order_mtx.unlock();
+            trans_mtx.unlock();
             //account_mtx.lock();
         } else {
             cerr<<"wrong format"<<endl;

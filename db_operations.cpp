@@ -208,8 +208,8 @@ void create_symbol(XMLElement* root, connection * C, string & resp) {
     }
     cur = cur->NextSiblingElement();
     W.commit();
-    sym_mtx.unlock();
     account_mtx.unlock();
+    sym_mtx.unlock();
   }
 }
 //this is the function for symbol in tra

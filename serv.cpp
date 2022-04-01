@@ -1,4 +1,5 @@
 #include "operations.hpp"
+//#include <pthread.h>
 using namespace std;
 
 // vector<string> split_str(string & str) {
@@ -84,6 +85,14 @@ int main(int argc, char* argv[]) {
             //exit(EXIT_FAILURE);
         }
         thread newthread(handle_request, client_fd);
+
+        /*
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        CPU_SET(0, &cpuset);
+        pthread_setaffinity_np(newthread.native_handle(), sizeof(cpu_set_t), &cpuset);
+        */
+
         newthread.detach();
     }
     

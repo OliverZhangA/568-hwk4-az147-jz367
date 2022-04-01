@@ -101,6 +101,7 @@ string xml_handler(string xmltext, connection* C){
             transactions_handler(elmtRoot, C, resp);
         } else {
             //report error
+            resp += "<error>Not a valid operation</error>\n";
         }
         elmtRoot = elmtRoot->NextSiblingElement();
     }

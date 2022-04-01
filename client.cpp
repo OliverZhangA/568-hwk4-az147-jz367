@@ -152,7 +152,7 @@ int main(int argc, char* argv[]) {
       //cout<<"*************************"<<endl<<endl;
     }
 
-    for (size_t i = 0; i < 100000; ++i) {
+    for (size_t i = 0; i < 1000; ++i) {
       string req("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
       req += "<transactions id=\"" + string(argv[3]) + "\">";
       req += "<query id=\"" + string(argv[2]) + "\"/>";

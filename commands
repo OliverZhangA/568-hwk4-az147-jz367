@@ -1,0 +1,5 @@
+sudo systemd-run --scope -p CPUQuota=1% ./serv
+
+sudo taskset -c 0 ./serv //start the server using only 1 cpu
+ps aux //find the pid of postgres*4
+sudo taskset -cp 0 pid //alter postgres

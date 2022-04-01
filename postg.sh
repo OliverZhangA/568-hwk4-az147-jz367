@@ -3,7 +3,7 @@
 #or
 #sudo taskset -c 0 ./serv
 u=postgres # do not set this to root!
-c=0-3
+c=0-1
 for p in $(pgrep -u $u)
   do
     sudo taskset -cp $c $p
